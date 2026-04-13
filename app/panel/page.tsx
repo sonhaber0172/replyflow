@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 interface GecmisItem {
   id: number;
@@ -20,17 +21,17 @@ const ornekMesajlar = [
   "Teslimat adresimi değiştirmek istiyorum",
 ];
 
-const kategoriRenkleri: { [key: string]: { bg: string; color: string } } = {
-  "Kargo Takip":       { bg: "#dbeafe", color: "#1d4ed8" },
-  "Sipariş İptali":    { bg: "#fee2e2", color: "#b91c1c" },
-  "Yanlış Ürün":       { bg: "#ffedd5", color: "#c2410c" },
-  "Hasarlı Ürün":      { bg: "#ffe4e6", color: "#be123c" },
-  "Fatura/Belge":      { bg: "#f3e8ff", color: "#7e22ce" },
-  "Adres Değişikliği": { bg: "#fef9c3", color: "#a16207" },
-  "İade":              { bg: "#dcfce7", color: "#15803d" },
-  "Stok":              { bg: "#ccfbf1", color: "#0f766e" },
-  "Fiyat":             { bg: "#e0e7ff", color: "#4338ca" },
-  "Genel":             { bg: "#f3f4f6", color: "#374151" },
+const kategoriRenkleri: { [key: string]: string } = {
+  "Kargo Takip":       "bg-blue-100 text-blue-700",
+  "Sipariş İptali":    "bg-red-100 text-red-700",
+  "Yanlış Ürün":       "bg-orange-100 text-orange-700",
+  "Hasarlı Ürün":      "bg-rose-100 text-rose-700",
+  "Fatura/Belge":      "bg-purple-100 text-purple-700",
+  "Adres Değişikliği": "bg-yellow-100 text-yellow-700",
+  "İade":              "bg-green-100 text-green-700",
+  "Stok":              "bg-teal-100 text-teal-700",
+  "Fiyat":             "bg-indigo-100 text-indigo-700",
+  "Genel":             "bg-gray-100 text-gray-700",
 };
 
 export default function Panel() {
@@ -40,23 +41,51 @@ export default function Panel() {
   const [yukleniyor, setYukleniyor] = useState(false);
   const [kopyalandi, setKopyalandi] = useState(false);
   const [gecmis, setGecmis] = useState<GecmisItem[]>([]);
+  const router = useRouter();
+
+  useEffect(() => {
+    if (localStorage.getItem("giris") !== "true") {
+      router.push("/login");
+    }
+  }, [router]);
 
   async function cevapUret() {
-    if (!mesaj.trim()) { alert("Lütfen bir mesaj girin!"); return; }
-    setYukleniyor(true); setCevap(""); setKategori("");
+    if (!mesaj.trim()) {
+      alert("Lütfen bir mesaj girin!");
+      return;
+    }
+    setYukleniyor(true);
+    setCevap("");
+    setKategori("");
+
     const response = await fetch("/api/reply", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mesaj }),
     });
+
     const data = await response.json();
     setCevap(data.cevap);
     setKategori(data.kategori);
     setYukleniyor(false);
-    setGecmis((onceki) => [{
-      id: Date.now(), mesaj, cevap: data.cevap, kategori: data.kategori,
-      saat: new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }),
-    }, ...onceki]);
+
+    // Supabase'e kaydet
+    await supabase.from("mesajlar").insert({
+      mesaj: mesaj,
+      cevap: data.cevap,
+      kategori: data.kategori,
+    });
+
+    setGecmis((onceki) => [
+      {
+        id: Date.now(),
+        mesaj: mesaj,
+        cevap: data.cevap,
+        kategori: data.kategori,
+        saat: new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }),
+      },
+      ...onceki,
+    ]);
   }
 
   function kopyala() {
@@ -65,131 +94,139 @@ export default function Panel() {
     setTimeout(() => setKopyalandi(false), 2000);
   }
 
-  const s = {
-    page:    { minHeight:"100vh", background:"#0f172a", padding:"24px", display:"flex", flexDirection:"column" as const, alignItems:"center" },
-    wrap:    { width:"100%", maxWidth:"760px" },
-    card:    { background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:"16px", padding:"24px", marginBottom:"16px" },
-    label:   { color:"#94a3b8", fontSize:"11px", fontWeight:700, letterSpacing:"2px", textTransform:"uppercase" as const, marginBottom:"12px", display:"block" },
-    text:    { color:"#e2e8f0" },
-    muted:   { color:"#64748b" },
-    white:   { color:"#ffffff" },
-    input:   { width:"100%", background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:"12px", padding:"16px", color:"#ffffff", fontSize:"14px", resize:"none" as const, outline:"none", boxSizing:"border-box" as const },
-    btn:     { width:"100%", background:"#2563eb", color:"#ffffff", border:"none", borderRadius:"12px", padding:"14px", fontSize:"14px", fontWeight:700, cursor:"pointer", marginTop:"12px" },
-    btnGray: { width:"100%", background:"transparent", color:"#94a3b8", border:"1px solid rgba(255,255,255,0.1)", borderRadius:"12px", padding:"14px", fontSize:"14px", fontWeight:600, cursor:"pointer", marginTop:"12px" },
-    chip:    (kat: string) => ({ background: kategoriRenkleri[kat]?.bg || "#f3f4f6", color: kategoriRenkleri[kat]?.color || "#374151", fontSize:"11px", fontWeight:700, padding:"4px 10px", borderRadius:"999px" }),
-    grid3:   { display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"16px", marginBottom:"24px" },
-    stat:    { background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:"16px", padding:"16px", textAlign:"center" as const },
-    tags:    { display:"flex", flexWrap:"wrap" as const, gap:"8px", marginBottom:"20px" },
-    tag:     { background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", color:"#94a3b8", fontSize:"12px", padding:"6px 14px", borderRadius:"999px", cursor:"pointer" },
-  };
-
   return (
-    <div style={s.page}>
-      <div style={s.wrap}>
+    <main translate="no" className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 p-6 flex flex-col items-center">
+      <div className="max-w-3xl w-full mx-auto py-10">
 
-        {/* Header */}
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"32px" }}>
+        <div className="flex items-center justify-between mb-10">
           <div>
-            <div style={{ fontSize:"28px", fontWeight:900, color:"#ffffff" }}>
-              Reply<span style={{ color:"#60a5fa" }}>Flow</span>
-            </div>
-            <div style={{ color:"#64748b", fontSize:"13px" }}>Müşteri destek paneli</div>
+            <h1 className="text-3xl font-black text-white">
+              Reply<span className="text-blue-400">Flow</span>
+            </h1>
+            <p className="text-slate-400 text-sm">Müşteri destek paneli</p>
           </div>
-          <Link href="/" style={{ color:"#94a3b8", fontSize:"13px", border:"1px solid rgba(255,255,255,0.1)", padding:"8px 16px", borderRadius:"12px", textDecoration:"none" }}>
-            ← Ana Sayfa
-          </Link>
+          <button
+            onClick={() => { localStorage.removeItem("giris"); router.push("/login"); }}
+            className="text-slate-400 hover:text-white text-sm border border-white/10 hover:border-white/30 px-4 py-2 rounded-xl transition"
+          >
+            Çıkış Yap
+          </button>
         </div>
 
-        {/* Sayaçlar */}
-        <div style={s.grid3}>
-          <div style={s.stat}>
-            <div style={{ fontSize:"28px", fontWeight:700, color:"#60a5fa" }}>{gecmis.length}</div>
-            <div style={{ fontSize:"11px", color:"#64748b", marginTop:"4px" }}>Cevaplanan</div>
+        <div className="grid grid-cols-3 gap-4 mb-8">
+          <div className="bg-white/5 backdrop-blur border border-white/10 rounded-2xl p-4 text-center">
+            <div className="text-3xl font-bold text-blue-400">{gecmis.length}</div>
+            <div className="text-xs text-slate-400 mt-1">Cevaplanan</div>
           </div>
-          <div style={s.stat}>
-            <div style={{ fontSize:"28px", fontWeight:700, color:"#4ade80" }}>{gecmis.length > 0 ? "~5sn" : "—"}</div>
-            <div style={{ fontSize:"11px", color:"#64748b", marginTop:"4px" }}>Ort. Süre</div>
-          </div>
-          <div style={s.stat}>
-            <div style={{ fontSize:"28px", fontWeight:700, color:"#c084fc" }}>
-              {gecmis.length > 0 ? [...new Set(gecmis.map(g => g.kategori))].length : "—"}
+          <div className="bg-white/5 backdrop-blur border border-white/10 rounded-2xl p-4 text-center">
+            <div className="text-3xl font-bold text-green-400">
+              {gecmis.length > 0 ? "~5sn" : "—"}
             </div>
-            <div style={{ fontSize:"11px", color:"#64748b", marginTop:"4px" }}>Kategori</div>
+            <div className="text-xs text-slate-400 mt-1">Ortalama Süre</div>
+          </div>
+          <div className="bg-white/5 backdrop-blur border border-white/10 rounded-2xl p-4 text-center">
+            <div className="text-3xl font-bold text-purple-400">
+              {gecmis.length > 0 ? [...new Set(gecmis.map((g) => g.kategori))].length : "—"}
+            </div>
+            <div className="text-xs text-slate-400 mt-1">Kategori</div>
           </div>
         </div>
 
-        {/* Hızlı Test */}
-        <div style={{ marginBottom:"16px" }}>
-          <div style={{ color:"#64748b", fontSize:"11px", fontWeight:700, letterSpacing:"2px", marginBottom:"8px" }}>💡 HIZLI TEST</div>
-          <div style={s.tags}>
-            {ornekMesajlar.map((o, i) => (
-              <button key={i} onClick={() => setMesaj(o)} style={s.tag}>{o}</button>
+        <div className="mb-5">
+          <p className="text-xs text-slate-500 mb-2 font-medium uppercase tracking-wider">
+            💡 Hızlı test:
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {ornekMesajlar.map((ornek, i) => (
+              <button
+                key={i}
+                onClick={() => setMesaj(ornek)}
+                className="text-xs bg-white/5 hover:bg-blue-500/20 border border-white/10 hover:border-blue-500/40 text-slate-300 hover:text-blue-300 px-3 py-1.5 rounded-full transition"
+              >
+                {ornek}
+              </button>
             ))}
           </div>
         </div>
 
-        {/* Mesaj Kutusu */}
-        <div style={s.card}>
-          <span style={s.label}>📩 Müşteri Mesajı</span>
+        <div className="bg-white/5 backdrop-blur border border-white/10 rounded-2xl p-6 mb-4">
+          <label className="block text-slate-300 font-semibold mb-3 text-sm uppercase tracking-wider">
+            📩 Müşteri Mesajı
+          </label>
           <textarea
+            className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white placeholder-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 transition text-sm"
             rows={4}
-            style={s.input}
             placeholder="Müşterinin mesajını buraya yapıştır..."
             value={mesaj}
             onChange={(e) => setMesaj(e.target.value)}
           />
-          <button onClick={cevapUret} disabled={yukleniyor} style={{ ...s.btn, background: yukleniyor ? "#1e3a8a" : "#2563eb" }}>
+          <button
+            onClick={cevapUret}
+            disabled={yukleniyor}
+            className="mt-4 w-full bg-blue-600 hover:bg-blue-500 disabled:bg-blue-900 disabled:text-blue-500 text-white font-bold py-3.5 rounded-xl transition text-sm tracking-wide"
+          >
             {yukleniyor ? "⏳ Analiz ediliyor..." : "🤖 AI Cevap Üret"}
           </button>
         </div>
 
-        {/* Cevap Kutusu */}
-        <div style={s.card}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"16px" }}>
-            <span style={s.label}>✅ Önerilen Cevap</span>
-            {kategori && <span style={s.chip(kategori)}>{kategori}</span>}
+        <div className="bg-white/5 backdrop-blur border border-white/10 rounded-2xl p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <label className="text-slate-300 font-semibold text-sm uppercase tracking-wider">
+              ✅ Önerilen Cevap
+            </label>
+            {kategori && (
+              <span className={`text-xs font-semibold px-3 py-1 rounded-full ${kategoriRenkleri[kategori] || "bg-gray-100 text-gray-700"}`}>
+                {kategori}
+              </span>
+            )}
           </div>
           {cevap ? (
             <>
-              <div style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:"12px", padding:"16px", color:"#e2e8f0", fontSize:"14px", lineHeight:"1.7" }}>
+              <p className="text-slate-200 leading-relaxed bg-white/5 rounded-xl p-4 text-sm border border-white/10">
                 {cevap}
-              </div>
-              <button onClick={kopyala} style={s.btnGray}>
+              </p>
+              <button
+                onClick={kopyala}
+                className="mt-4 w-full border border-white/10 hover:bg-white/10 text-slate-300 font-semibold py-3 rounded-xl transition text-sm"
+              >
                 {kopyalandi ? "✅ Kopyalandı!" : "📋 Cevabı Kopyala"}
               </button>
             </>
           ) : (
-            <div style={{ textAlign:"center", padding:"40px 0", color:"#334155" }}>
-              <div style={{ fontSize:"40px", marginBottom:"8px" }}>💬</div>
-              <div style={{ fontSize:"13px", fontStyle:"italic" }}>Henüz cevap üretilmedi. Yukarıya mesaj yaz ve butona bas.</div>
+            <div className="text-center py-10 text-slate-600">
+              <div className="text-5xl mb-3">💬</div>
+              <p className="italic text-sm">Henüz cevap üretilmedi. Yukarıya mesaj yaz ve butona bas.</p>
             </div>
           )}
         </div>
 
-        {/* Geçmiş */}
         {gecmis.length > 0 && (
-          <div style={s.card}>
-            <span style={s.label}>🕐 Mesaj Geçmişi</span>
-            <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
+          <div className="bg-white/5 backdrop-blur border border-white/10 rounded-2xl p-6">
+            <h2 className="text-slate-300 font-semibold mb-4 text-sm uppercase tracking-wider">
+              🕐 Mesaj Geçmişi
+            </h2>
+            <div className="flex flex-col gap-3">
               {gecmis.map((item) => (
-                <div key={item.id} style={{ border:"1px solid rgba(255,255,255,0.08)", borderRadius:"12px", padding:"16px" }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"8px" }}>
-                    <span style={s.chip(item.kategori)}>{item.kategori}</span>
-                    <span style={{ fontSize:"11px", color:"#64748b" }}>{item.saat}</span>
+                <div key={item.id} className="border border-white/10 rounded-xl p-4 hover:bg-white/5 transition">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${kategoriRenkleri[item.kategori] || "bg-gray-100 text-gray-700"}`}>
+                      {item.kategori}
+                    </span>
+                    <span className="text-xs text-slate-500">{item.saat}</span>
                   </div>
-                  <div style={{ fontSize:"12px", color:"#64748b", marginBottom:"4px" }}>📩 {item.mesaj}</div>
-                  <div style={{ fontSize:"12px", color:"#94a3b8" }}>✅ {item.cevap.slice(0, 90)}...</div>
+                  <p className="text-xs text-slate-400 mt-1">📩 {item.mesaj}</p>
+                  <p className="text-xs text-slate-300 mt-1">✅ {item.cevap.slice(0, 90)}...</p>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        <div style={{ textAlign:"center", fontSize:"11px", color:"#334155", marginTop:"24px" }}>
+        <p className="text-center text-xs text-slate-600 mt-8">
           ReplyFlow — E-ticaret müşteri desteği için AI asistan
-        </div>
+        </p>
 
       </div>
-    </div>
+    </main>
   );
 }
